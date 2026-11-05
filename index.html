@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Elemental Duel</title>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+:root{--bg:#1b1730;--panel:#2a2547;--ink:#f3ecdd;--dim:#a59fc0;--c:#3aa8ff}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{margin:0;height:100%;background:#0e0b1a;color:var(--ink);font-family:system-ui,sans-serif;overflow:hidden}
+#stage{position:absolute;left:50%;top:50%;width:720px;height:360px;background:var(--bg);overflow:hidden;transform-origin:center}
+.screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;padding:14px 28px;text-align:center;gap:10px}
+.screen.on{display:flex}
+h1,h2,.hd{font-family:'Lilita One',system-ui,sans-serif;font-weight:400;margin:0}
+h1{font-size:40px;line-height:1}
+h2{font-size:26px}
+p{margin:0;color:var(--dim);font-size:15px;line-height:1.4}
+.btn{border:0;border-radius:16px;padding:14px 22px;background:var(--c);color:#1b1730;font-family:'Lilita One',system-ui;font-size:20px;width:100%}
+.btn.alt{background:var(--panel);color:var(--ink)}
+.btn:disabled{opacity:.5}
+input{width:100%;padding:14px;border-radius:16px;border:2px solid #ffffff22;background:var(--panel);color:var(--ink);font-family:'Lilita One',system-ui;font-size:26px;text-align:center;letter-spacing:8px;text-transform:uppercase;-webkit-user-select:text;user-select:text;touch-action:auto}
+#err{color:#ff8a8a;min-height:18px;font-size:14px}
+#code{font-family:'Lilita One',system-ui;font-size:54px;letter-spacing:10px;color:var(--ink)}
+#cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:100%}
+.card{--c:#fff;border:2px solid var(--c);border-radius:20px;background:var(--panel);color:var(--ink);padding:14px 4px;display:flex;flex-direction:column;align-items:center;gap:4px;font:inherit}
+.card .ic{font-size:44px;line-height:1.1}
+.card b{font-family:'Lilita One',system-ui;font-weight:400;font-size:22px}
+.card i{font-style:normal;font-size:12px;color:var(--dim)}
+.card.mine{background:color-mix(in srgb,var(--c) 30%,var(--panel))}
+.card.taken{border-style:dashed;border-color:#ffffff33}
+.card:disabled{opacity:.45}
+.card.mine:disabled{opacity:1}
+#fight{padding:0;gap:0;justify-content:flex-start}
+canvas{width:720px;height:360px;display:block}
+#controls{position:absolute;left:0;right:0;bottom:0;height:84px;padding:0 16px 14px;display:none;grid-template-columns:130px 1fr 110px 150px;gap:10px}
+.cb{border:0;border-radius:18px;background:var(--panel);color:var(--ink);font-family:'Lilita One',system-ui;font-size:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:inset 0 0 0 2px #ffffff22}
+.cb small{font-family:system-ui;font-size:11px;color:var(--dim)}
+#ba{background:var(--c);color:#1b1730}
+#ba small{color:#1b1730aa}
+.cb.down{transform:scale(.95);filter:brightness(1.2)}
+.cb.off{opacity:.4}
+#cdnum{position:absolute;left:0;right:0;top:28%;text-align:center;font-family:'Lilita One',system-ui;font-size:80px;pointer-events:none;display:none;text-shadow:0 4px 20px #000a}
+#over{position:absolute;inset:0;background:#0e0b1acc;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:30px}
+#over.on{display:flex}
+#lobby{flex-direction:row;gap:36px}
+.col{display:flex;flex-direction:column;gap:10px;flex:1;align-items:center;max-width:300px}
+#rotate{position:fixed;inset:0;z-index:9;background:#0e0b1a;display:none;align-items:center;justify-content:center;text-align:center;padding:30px;font-family:'Lilita One',system-ui;font-size:26px;color:#f3ecdd}
+</style>
+</head>
+<body>
+<div id="rotate">Rotate your phone sideways to play</div>
+<div id="stage">
+
+  <div id="lobby" class="screen on">
+    <div class="col">
+      <h1>Elemental Duel</h1>
+      <p>Two phones, one arena. Open this page on both.</p>
+      <button class="btn" id="create">Create duel</button>
+    </div>
+    <div class="col">
+      <p>Or join your friend</p>
+      <input id="codein" maxlength="4" placeholder="CODE" autocomplete="off">
+      <button class="btn alt" id="joinbtn">Join duel</button>
+      <div id="err"></div>
+    </div>
+  </div>
+
+  <div id="wait" class="screen">
+    <p>Tell your friend this code</p>
+    <div id="code">----</div>
+    <button class="btn alt" id="copy">Copy invite link</button>
+    <p>Waiting for your friend to join…</p>
+  </div>
+
+  <div id="select" class="screen">
+    <h2>Choose your fighter</h2>
+    <div id="cards"></div>
+    <p id="selmsg"></p>
+  </div>
+
+  <div id="fight" class="screen">
+    <canvas id="cv" width="720" height="360"></canvas>
+    <div id="cdnum"></div>
+    <div id="controls">
+      <button class="cb" id="bg">Guard<small>hold</small></button>
+      <span></span>
+      <button class="cb" id="bs">Special<small>50 energy</small></button>
+      <button class="cb" id="ba">Attack<small>10 energy</small></button>
+    </div>
+    <div id="over">
+      <h2 id="otitle"></h2>
+      <p id="osub"></p>
+      <button class="btn" id="rematch">Rematch</button>
+    </div>
+  </div>
+
+  <div id="gone" class="screen">
+    <h2>Connection ended</h2>
+    <p>Your friend left or the connection dropped.</p>
+    <button class="btn" onclick="location.href=location.pathname">Back to start</button>
+  </div>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const F = [
+  {name:'Water', icon:'💧', c:'#3aa8ff'},
+  {name:'Fire',  icon:'🔥', c:'#ff6a3d'},
+  {name:'Wind',  icon:'🌪️', c:'#7ee6c4'},
+  {name:'Soil',  icon:'🪨', c:'#b9824a'}
+];
+const PRE = 'eduel1-';
+
+/* ---------- layout ---------- */
+function fit(){
+  const s = Math.min(innerWidth/720, innerHeight/360);
+  $('rotate').style.display = innerHeight > innerWidth ? 'flex' : 'none';
+  $('stage').style.transform = `translate(-50%,-50%) scale(${s})`;
+}
+addEventListener('resize', fit); fit();
+
+/* ---------- state ---------- */
+let peer, conn, isHost = false, me = 0, phase = 'lobby';
+let picks = [null,null], fighters = [null,null], pend = false;
+let G = null, V = {hp:[100,100], en:[100,100], gd:[false,false]};
+let tickId = null, lastT = 0, stN = 0, pid = 0;
+let anim = [], parts = [], texts = [], hurt = [0,0], pose = [0,0], shake = 0, dh = [100,100];
+
+function show(id){ document.querySelectorAll('.screen').forEach(e => e.classList.toggle('on', e.id === id)); }
+function err(msg){ $('err').textContent = msg; $('create').disabled = false; $('joinbtn').disabled = false; show('lobby'); phase = 'lobby'; }
+function send(m){ if (conn && conn.open) conn.send(m); }
+
+/* ---------- connection ---------- */
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+function randCode(){ let s=''; for(let i=0;i<4;i++) s += CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)]; return s; }
+
+function create(tries = 0){
+  $('create').disabled = true; $('err').textContent = '';
+  const code = randCode();
+  peer = new Peer(PRE + code);
+  peer.on('open', () => { $('code').textContent = code; phase = 'wait'; show('wait'); });
+  peer.on('error', e => {
+    if (e.type === 'unavailable-id' && tries < 5) { peer.destroy(); create(tries+1); }
+    else err('Could not start a duel (' + e.type + '). Try again.');
+  });
+  peer.on('connection', c => {
+    if (conn) { c.close(); return; }
+    conn = c; isHost = true; me = 0;
+    wire(() => resetSelect());
+  });
+}
+
+function join(code){
+  code = (code||'').toUpperCase().trim();
+  if (code.length !== 4) { $('err').textContent = 'Enter the 4-letter code.'; return; }
+  $('err').textContent = 'Connecting…'; $('joinbtn').disabled = true; $('create').disabled = true;
+  peer = new Peer();
+  peer.on('open', () => {
+    conn = peer.connect(PRE + code, {reliable:true});
+    isHost = false; me = 1;
+    wire(() => {});
+    setTimeout(() => { if (conn && !conn.open && phase === 'lobby') err('Could not connect. Check the code and try again.'); }, 10000);
+  });
+  peer.on('error', e => err(e.type === 'peer-unavailable' ? 'No duel found with that code.' : 'Connection error (' + e.type + ').'));
+}
+
+function wire(onOpen){
+  conn.on('data', onData);
+  conn.on('close', () => { if (phase !== 'lobby') { clearInterval(tickId); show('gone'); } });
+  if (conn.open) onOpen(); else conn.on('open', onOpen);
+}
+
+/* ---------- messages ---------- */
+function onData(m){
+  switch (m.t){
+    case 'pick':   if (isHost && !pick(1, m.f)) broadcastSel(); break;
+    case 'in':     if (isHost) applyInput(1, m.a, m.v); break;
+    case 'rematch':if (isHost) resetSelect(); break;
+    case 'sel':    picks = m.picks; pend = false; if (phase !== 'select') goSelect(); renderSelect(); break;
+    case 'cd':     cdShow(m.n); break;
+    case 'fire':   onFire(m); break;
+    case 'hit':    V.hp[m.to] = m.hp; onHit(m); break;
+    case 'st':     V.hp = m.hp; V.en = m.en; V.gd = m.gd; break;
+    case 'end':    onEnd(m.w); break;
+  }
+}
+
+/* ---------- select ---------- */
+function goSelect(){
+  phase = 'select'; $('over').classList.remove('on'); $('controls').style.display = 'none';
+  $('cdnum').style.display = 'none'; show('select');
+}
+function resetSelect(){
+  clearInterval(tickId); G = null; picks = [null,null]; pend = false;
+  goSelect(); broadcastSel(); renderSelect();
+}
+function broadcastSel(){ send({t:'sel', picks}); }
+function pick(i, f){
+  if (picks[i] !== null || picks.includes(f)) return false;
+  picks[i] = f; broadcastSel(); renderSelect();
+  if (picks[0] !== null && picks[1] !== null) setTimeout(startCountdown, 900);
+  return true;
+}
+function choose(k){
+  if (isHost) pick(0, k);
+  else { pend = true; send({t:'pick', f:k}); renderSelect(); }
+}
+function renderSelect(){
+  const box = $('cards'); box.innerHTML = '';
+  F.forEach((f,k) => {
+    const o = picks.indexOf(k), b = document.createElement('button');
+    b.className = 'card' + (o === me ? ' mine' : o >= 0 ? ' taken' : '');
+    b.style.setProperty('--c', f.c);
+    b.innerHTML = `<span class="ic">${f.icon}</span><b>${f.name}</b><i>${o===me?'Yours':o>=0?'Taken':'Tap to pick'}</i>`;
+    b.disabled = o >= 0 || picks[me] !== null || pend;
+    b.onclick = () => choose(k);
+    box.appendChild(b);
+  });
+  $('selmsg').textContent =
+    picks[me] === null ? 'Pick one. Your friend cannot pick the same fighter.' :
+    picks[1-me] === null ? 'Locked in. Waiting for your friend…' : 'Both ready. Get set!';
+}
+
+/* ---------- countdown ---------- */
+function startCountdown(){
+  let n = 3;
+  const step = () => {
+    send({t:'cd', n}); cdShow(n);
+    if (n === 0) { beginFight(); return; }
+    n--; setTimeout(step, 1000);
+  };
+  step();
+}
+function enterFight(){
+  fighters = picks.slice();
+  V = {hp:[100,100], en:[100,100], gd:[false,false]}; dh = [100,100];
+  anim = []; parts = []; texts = []; hurt = [0,0]; pose = [0,0];
+  $('stage').style.setProperty('--c', F[fighters[me]].c);
+  $('over').classList.remove('on'); $('controls').style.display = 'none';
+  show('fight');
+}
+function cdShow(n){
+  if (phase !== 'cd' && phase !== 'fight') enterFight();
+  phase = 'cd';
+  const el = $('cdnum'); el.style.display = 'block'; el.textContent = n > 0 ? n : 'Fight!';
+  if (n === 0) {
+    phase = 'fight'; $('controls').style.display = 'grid';
+    setTimeout(() => { if (phase === 'fight') el.style.display = 'none'; }, 700);
+  }
+}
+
+/* ---------- host simulation ---------- */
+function beginFight(){
+  G = {hp:[100,100], en:[100,100], gd:[false,false], pj:[], last:[[0,0],[0,0]], over:false};
+  V = G; lastT = performance.now(); stN = 0;
+  clearInterval(tickId); tickId = setInterval(loop, 33);
+}
+function loop(){
+  if (!G || G.over) return;
+  const now = performance.now(), dt = Math.min(.1, (now - lastT)/1000); lastT = now;
+  for (let i=0;i<2;i++){
+    if (G.gd[i]) { G.en[i] -= 25*dt; if (G.en[i] <= 0) { G.en[i] = 0; G.gd[i] = false; } }
+    else G.en[i] = Math.min(100, G.en[i] + 15*dt);
+  }
+  for (const p of G.pj.slice()){
+    if (now >= p.hit){ G.pj.splice(G.pj.indexOf(p),1); resolve(p); }
+  }
+  if (++stN % 3 === 0) send({t:'st', hp:G.hp.map(v=>Math.round(v*10)/10), en:G.en.map(Math.round), gd:G.gd});
+  if (G.hp[0] <= 0 || G.hp[1] <= 0){
+    G.over = true; clearInterval(tickId);
+    const w = (G.hp[0] <= 0 && G.hp[1] <= 0) ? -1 : (G.hp[0] <= 0 ? 1 : 0);
+    send({t:'end', w}); onEnd(w);
+  }
+}
+function resolve(p){
+  const to = 1 - p.from, blk = G.gd[to];
+  const dmg = p.dmg * (blk ? .15 : 1);
+  G.hp[to] = Math.max(0, G.hp[to] - dmg);
+  if (blk) G.en[to] = Math.max(0, G.en[to] - 8);
+  const m = {t:'hit', id:p.id, to, blk, dmg:Math.round(dmg), hp:Math.round(G.hp[to]*10)/10};
+  send(m); onHit(m);
+}
+function applyInput(i, a, v){
+  if (!G || G.over) return;
+  if (a === 'gd'){ G.gd[i] = !!v && G.en[i] > 5; return; }
+  const sp = a === 'spc', cost = sp ? 50 : 10, cd = sp ? 1000 : 450, now = performance.now();
+  if (G.en[i] < cost || now - G.last[i][+sp] < cd) return;
+  G.en[i] -= cost; G.last[i][+sp] = now;
+  const dur = sp ? 800 : 600, id = ++pid;
+  G.pj.push({id, from:i, dmg: sp ? 25 : 8, hit: now + dur});
+  const m = {t:'fire', id, from:i, sp, dur};
+  send(m); onFire(m);
+}
+
+/* ---------- shared effects ---------- */
+function pos(i){ return i === me ? {x:150, y:165} : {x:570, y:165}; }
+function onFire(m){
+  anim.push({id:m.id, from:m.from, sp:m.sp, dur:m.dur, t0:performance.now()});
+  pose[m.from] = performance.now() + 250;
+}
+function spawn(x, y, col, n, spd){
+  for (let k=0;k<n;k++){
+    const a = Math.random()*Math.PI*2, s = (.4+Math.random())*spd;
+    parts.push({x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s - 1, l:1, c:col, r:2+Math.random()*3});
+  }
+}
+function onHit(m){
+  anim = anim.filter(a => a.id !== m.id);
+  const p = pos(m.to), col = F[fighters[m.to]].c, now = performance.now();
+  if (m.blk) spawn(p.x, p.y-10, col, 14, 4);
+  else { spawn(p.x, p.y-10, '#d1002f', 22, 5); spawn(p.x, p.y-10, col, 8, 4); }
+  hurt[m.to] = now + 250;
+  if (m.to === me) shake = m.blk ? 4 : 12;
+  texts.push({x:p.x + (Math.random()*40-20), y:p.y-75, s:(m.blk?'blocked ':'-')+m.dmg, c:m.blk?col:'#ff5b6e', t0:now});
+}
+function onEnd(w){
+  phase = 'over'; $('controls').style.display = 'none';
+  setTimeout(() => {
+    if (phase !== 'over') return;
+    $('otitle').textContent = w === -1 ? 'Draw' : w === me ? 'You win!' : 'You lose';
+    $('osub').textContent = w === -1 ? 'Both fighters fell together.' :
+      `${F[fighters[w]].name} ${w === me ? 'stands victorious' : 'wins this round'}.`;
+    $('over').classList.add('on');
+  }, 800);
+}
+
+/* ---------- input ---------- */
+function sendInput(a, v){
+  if (phase !== 'fight') return;
+  if (isHost) applyInput(0, a, v); else send({t:'in', a, v});
+}
+function hold(btn, a){
+  const on = e => { e.preventDefault(); btn.classList.add('down'); sendInput(a, true); };
+  const off = e => { e.preventDefault(); if (btn.classList.contains('down')) { btn.classList.remove('down'); sendInput(a, false); } };
+  btn.addEventListener('pointerdown', on);
+  ['pointerup','pointercancel','pointerleave'].forEach(ev => btn.addEventListener(ev, off));
+}
+function tap(btn, a){
+  btn.addEventListener('pointerdown', e => { e.preventDefault(); btn.classList.add('down'); sendInput(a); });
+  ['pointerup','pointercancel','pointerleave'].forEach(ev => btn.addEventListener(ev, () => btn.classList.remove('down')));
+}
+hold($('bg'), 'gd'); tap($('ba'), 'atk'); tap($('bs'), 'spc');
+addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (e.key === 'j') sendInput('atk'); else if (e.key === 'k') sendInput('spc'); else if (e.key === ' ') sendInput('gd', true);
+});
+addEventListener('keyup', e => { if (e.key === ' ') sendInput('gd', false); });
+
+$('create').onclick = () => create();
+$('joinbtn').onclick = () => join($('codein').value);
+$('rematch').onclick = () => { if (isHost) resetSelect(); else send({t:'rematch'}); };
+$('copy').onclick = async () => {
+  const url = location.origin + location.pathname + '?join=' + $('code').textContent;
+  try { await navigator.clipboard.writeText(url); $('copy').textContent = 'Copied'; }
+  catch (e) { prompt('Copy this link', url); }
+};
+
+/* ---------- drawing ---------- */
+const cv = $('cv'), ctx = cv.getContext('2d');
+const FONT = s => `${s}px "Lilita One",system-ui,sans-serif`;
+const line = (x1,y1,x2,y2) => { ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); };
+
+function figure(x, y, f, dir, atk, hit, t, guard){
+  ctx.save(); ctx.translate(x, y + Math.sin(t/400 + x)*2);
+  const gr = ctx.createRadialGradient(0,0,10,0,0,85);
+  gr.addColorStop(0, f.c + '66'); gr.addColorStop(1, f.c + '00');
+  ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(0,0,85,0,7); ctx.fill();
+  const col = hit ? '#fff' : f.c;
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  line(0,12,-16,52); line(0,12,16,52);
+  line(0,-34,0,12);
+  if (atk){ line(0,-26,dir*34,-34); line(0,-26,dir*30,-16); }
+  else { line(0,-26,-22,2); line(0,-26,22,2); }
+  ctx.beginPath(); ctx.arc(0,-50,13,0,7); ctx.fill();
+  ctx.font = '16px system-ui'; ctx.textAlign = 'center'; ctx.fillText(f.icon, 0, -4);
+  if (guard){
+    ctx.shadowColor = f.c; ctx.shadowBlur = 16;
+    ctx.strokeStyle = f.c; ctx.globalAlpha = .85; ctx.lineWidth = 8;
+    ctx.beginPath();
+    if (dir > 0) ctx.arc(0,-6,60,-Math.PI*.33,Math.PI*.33); else ctx.arc(0,-6,60,Math.PI*.67,Math.PI*1.33);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function bar(x, y, w, h, v, col){
+  ctx.fillStyle = '#ffffff1a'; ctx.beginPath(); ctx.roundRect(x,y,w,h,h/2); ctx.fill();
+  const ww = Math.max(0, Math.min(1, v/100)) * w;
+  if (ww > 1){ ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(x,y,ww,h,h/2); ctx.fill(); }
+}
+function hud(i){
+  const f = F[fighters[i]], x = i === me ? 20 : 390, w = 310;
+  ctx.textAlign = 'left'; ctx.fillStyle = '#f3ecdd'; ctx.font = FONT(16);
+  ctx.fillText((i === me ? 'You' : 'Opponent') + ' · ' + f.name, x, 26);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#a59fc0'; ctx.font = FONT(14);
+  ctx.fillText(Math.ceil(V.hp[i]), x + w, 26);
+  bar(x, 34, w, 12, dh[i], dh[i] > 30 ? '#6fdc8c' : '#ff5b6e');
+  bar(x, 50, w, 6, V.en[i], f.c);
+}
+
+function draw(){
+  requestAnimationFrame(draw);
+  if (fighters[0] === null || fighters[1] === null || !$('fight').classList.contains('on')) return;
+  const now = performance.now();
+  for (let i=0;i<2;i++) dh[i] += (V.hp[i] - dh[i]) * .18;
+
+  ctx.save(); ctx.clearRect(0,0,720,360);
+  if (shake > 0){ ctx.translate((Math.random()-.5)*shake, (Math.random()-.5)*shake); shake *= .86; if (shake < .5) shake = 0; }
+
+  const g = ctx.createLinearGradient(0,0,0,360);
+  g.addColorStop(0,'#2a2050'); g.addColorStop(.6,'#1b1730'); g.addColorStop(1,'#2c2142');
+  ctx.fillStyle = g; ctx.fillRect(-20,-20,760,400);
+  ctx.setLineDash([6,10]); ctx.strokeStyle = '#ffffff14'; ctx.lineWidth = 2; line(360,70,360,250); ctx.setLineDash([]);
+  for (const i of [0,1]){
+    const p = pos(i); ctx.fillStyle = '#00000044';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y+56, 90, 16, 0, 0, 7); ctx.fill();
+  }
+
+  for (const i of [0,1]){
+    const p = pos(i);
+    figure(p.x, p.y, F[fighters[i]], i === me ? 1 : -1, pose[i] > now, hurt[i] > now, now, V.gd[i]);
+  }
+
+  anim = anim.filter(a => now - a.t0 < a.dur + 1500);
+  for (const a of anim){
+    const f = F[fighters[a.from]], d = a.from === me ? 1 : -1;
+    const s = pos(a.from), e = pos(1 - a.from);
+    const x0 = s.x + d*45, x1 = e.x - d*30, by = s.y - 22;
+    const p = Math.min(1, (now - a.t0)/a.dur);
+    for (let k=5;k>=0;k--){
+      const pp = Math.max(0, p - k*.035), xx = x0 + (x1-x0)*pp, yy = by + Math.sin(pp*9 + a.id) * (a.sp ? 0 : 7);
+      ctx.globalAlpha = (1 - k/6) * .6; ctx.fillStyle = f.c;
+      ctx.beginPath(); ctx.arc(xx, yy, (a.sp ? 15 : 9) * (1 - k*.1), 0, 7); ctx.fill();
+    }
+    const xx = x0 + (x1-x0)*p, yy = by + Math.sin(p*9 + a.id) * (a.sp ? 0 : 7);
+    ctx.globalAlpha = 1; ctx.shadowColor = f.c; ctx.shadowBlur = 20; ctx.fillStyle = f.c;
+    ctx.beginPath(); ctx.arc(xx, yy, a.sp ? 16 : 9, 0, 7); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(xx, yy, a.sp ? 7 : 3.5, 0, 7); ctx.fill();
+    if (a.sp){ ctx.font = '22px system-ui'; ctx.textAlign = 'center'; ctx.fillText(f.icon, xx, yy + 8); }
+  }
+  ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+
+  parts = parts.filter(q => q.l > 0);
+  for (const q of parts){
+    q.x += q.vx; q.y += q.vy; q.vy += .18; q.l -= .028;
+    ctx.globalAlpha = Math.max(0, q.l); ctx.fillStyle = q.c;
+    ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  texts = texts.filter(t => now - t.t0 < 900);
+  ctx.textAlign = 'center'; ctx.font = FONT(22);
+  for (const t of texts){
+    const k = (now - t.t0)/900; ctx.globalAlpha = 1 - k; ctx.fillStyle = t.c;
+    ctx.fillText(t.s, t.x, t.y - k*36);
+  }
+  ctx.globalAlpha = 1;
+
+  hud(me); hud(1 - me);
+  ctx.restore();
+
+  const live = phase === 'fight';
+  $('ba').classList.toggle('off', !live || V.en[me] < 10);
+  $('bs').classList.toggle('off', !live || V.en[me] < 50);
+}
+requestAnimationFrame(draw);
+
+/* auto-join from invite link */
+const q = new URLSearchParams(location.search).get('join');
+if (q) { $('codein').value = q.toUpperCase().slice(0,4); join(q); }
+</script>
+</body>
+</html>
